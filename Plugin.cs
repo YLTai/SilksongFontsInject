@@ -1,0 +1,102 @@
+﻿using BepInEx;
+using UnityEngine;
+using System.IO;
+using System.Linq;
+using TMProOld;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Reflection;
+
+namespace SilksongFontsInject
+{
+    [BepInPlugin("com.YLTai.SilksongFontsInject", PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
+    public class Plugin : BaseUnityPlugin
+    {
+        // private static AssetBundle _customAssets;
+        private bool _hasExecuted = false;
+        private float _timer = 0f;
+        private string _pluginFolderPath;
+
+        void ReplaceTex()
+        {
+            var tex_path = Path.Combine(_pluginFolderPath, "assets/font.png");
+            var bytes = File.ReadAllBytes(tex_path);
+            Texture2D newTex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            newTex.LoadImage(bytes);
+            var texAssets = Resources.FindObjectsOfTypeAll<Texture2D>().Where(t => t.name == "chinese_body Atlas").ToArray();
+            var target = texAssets[0];
+
+            foreach (var mat in Resources.FindObjectsOfTypeAll<Material>())
+            {
+                if (mat.mainTexture == target)
+                {
+                    mat.mainTexture = newTex;
+                }
+            }
+
+
+            var json = File.ReadAllText(Path.Combine(_pluginFolderPath, "assets/font.json"));
+            var jsonObject = JsonUtility.FromJson<glyList>(json).data;
+            foreach (var mb in Resources.FindObjectsOfTypeAll<TMP_FontAsset>())
+            {
+                if (mb.name == "chinese_body")
+                {
+                    foreach (PropertyDescriptor descriptor in TypeDescriptor.GetProperties(mb))
+                    {
+                        string name = descriptor.Name;
+                        object value = descriptor.GetValue(mb);
+                        Logger.LogInfo($"{name}={value}");
+                    }
+
+                    mb.fontInfo.AtlasWidth = newTex.width;
+                    mb.fontInfo.AtlasHeight = newTex.height;
+                    mb.fontInfo.CharacterCount = 0;
+
+                    mb.atlas = newTex;
+
+                    mb.AddFaceInfo(mb.fontInfo);
+                    mb.AddGlyphInfo(jsonObject.ToArray());
+                    Logger.LogInfo($"{jsonObject.Count}  glyphs loaded");
+                    mb.ReadFontDefinition();
+
+                    // foreach (var textComponent in Resources.FindObjectsOfTypeAll<TMP_Text>())
+                    // {
+                    //     textComponent.ForceMeshUpdate(true);
+                    // }
+                }
+            }
+        }
+
+        private void Awake()
+        {
+            Assembly assembly = Assembly.GetExecutingAssembly();
+            string dllPath = assembly.Location;
+            _pluginFolderPath = Path.GetDirectoryName(dllPath);
+            Logger.LogInfo($"{_pluginFolderPath}");
+        }
+        void Update()
+        {
+            if (!_hasExecuted)
+            {
+                _timer += Time.deltaTime;
+
+                if (_timer >= 15f)
+                {
+                    ReplaceTex();
+                    _hasExecuted = true;
+                }
+            }
+            // var key = new BepInEx.Configuration.KeyboardShortcut(KeyCode.F9);
+
+            // if (key.IsDown())
+            // {
+            //     ReplaceTex();
+            // }
+        }
+    }
+
+    public class glyList
+    {
+        public List<TMP_Glyph> data;
+    }
+}
