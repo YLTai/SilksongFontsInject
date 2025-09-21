@@ -16,19 +16,16 @@ namespace SilksongFontsInject
         private bool _hasExecuted = false;
         private float _timer = 0f;
         private string _pluginFolderPath;
+        private Texture2D newTex;
 
         void ReplaceTex()
         {
-            var tex_path = Path.Combine(_pluginFolderPath, "assets/font.png");
-            var bytes = File.ReadAllBytes(tex_path);
-            Texture2D newTex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-            newTex.LoadImage(bytes);
             var texAssets = Resources.FindObjectsOfTypeAll<Texture2D>().Where(t => t.name == "chinese_body Atlas").ToArray();
             var target = texAssets[0];
 
             foreach (var mat in Resources.FindObjectsOfTypeAll<Material>())
             {
-                if (mat.mainTexture == target)
+                if (mat.HasProperty("_MainTex") && mat.mainTexture == target)
                 {
                     mat.mainTexture = newTex;
                 }
@@ -73,6 +70,11 @@ namespace SilksongFontsInject
             string dllPath = assembly.Location;
             _pluginFolderPath = Path.GetDirectoryName(dllPath);
             Logger.LogInfo($"{_pluginFolderPath}");
+
+            var tex_path = Path.Combine(_pluginFolderPath, "assets/font.png");
+            var bytes = File.ReadAllBytes(tex_path);
+            newTex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+            newTex.LoadImage(bytes);
         }
         void Update()
         {
