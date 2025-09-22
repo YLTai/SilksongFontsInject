@@ -15,6 +15,7 @@ namespace SilksongFontsInject
     {
         private string _pluginFolderPath;
         private Texture2D newTex;
+        private bool _hasReplaced = false;
 
         void ReplaceTex()
         {
@@ -64,11 +65,17 @@ namespace SilksongFontsInject
 
         private void OnActiveSceneChanged(Scene oldScene, Scene newScene)
         {
+            // Logger.LogInfo($"Scene changed from {oldScene.name} to {newScene.name}");
+
             // Menu_Title
             if (newScene.name == "Menu_Title")
             {
-                ReplaceTex();
-                Logger.LogInfo("Replace TMP Font");
+                if (!_hasReplaced)
+                {
+                    _hasReplaced = true;
+                    ReplaceTex();
+                    Logger.LogInfo("Replace TMP Font");
+                }
             }
         }
 
