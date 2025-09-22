@@ -6,15 +6,13 @@ using TMProOld;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
+using UnityEngine.SceneManagement;
 
 namespace SilksongFontsInject
 {
     [BepInPlugin("com.YLTai.SilksongFontsInject", PluginInfo.PLUGIN_NAME, PluginInfo.PLUGIN_VERSION)]
     public class Plugin : BaseUnityPlugin
     {
-        // private static AssetBundle _customAssets;
-        private bool _hasExecuted = false;
-        private float _timer = 0f;
         private string _pluginFolderPath;
         private Texture2D newTex;
 
@@ -64,8 +62,25 @@ namespace SilksongFontsInject
             }
         }
 
+        private void OnActiveSceneChanged(Scene oldScene, Scene newScene)
+        {
+            // Menu_Title
+            if (newScene.name == "Menu_Title")
+            {
+                ReplaceTex();
+                Logger.LogInfo("Replace TMP Font");
+            }
+        }
+
         private void Awake()
         {
+            // SceneManager.activeSceneChanged += (oldScene, newScene) =>
+            // {
+            //     Logger.LogInfo($"SCENE CHANGED: '{newScene.name}' (path: {newScene.path})");
+            // };
+
+            SceneManager.activeSceneChanged += OnActiveSceneChanged;
+
             Assembly assembly = Assembly.GetExecutingAssembly();
             string dllPath = assembly.Location;
             _pluginFolderPath = Path.GetDirectoryName(dllPath);
@@ -78,16 +93,6 @@ namespace SilksongFontsInject
         }
         void Update()
         {
-            if (!_hasExecuted)
-            {
-                _timer += Time.deltaTime;
-
-                if (_timer >= 15f)
-                {
-                    ReplaceTex();
-                    _hasExecuted = true;
-                }
-            }
             // var key = new BepInEx.Configuration.KeyboardShortcut(KeyCode.F9);
 
             // if (key.IsDown())
