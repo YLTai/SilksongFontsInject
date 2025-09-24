@@ -1,12 +1,14 @@
 ﻿using BepInEx;
-using UnityEngine;
 using System.IO;
 using System.Linq;
 using TMProOld;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
+using UnityEngine;
 using UnityEngine.SceneManagement;
+using Newtonsoft.Json;
+using GenericVariableExtension;
 
 namespace SilksongFontsInject
 {
@@ -16,6 +18,10 @@ namespace SilksongFontsInject
         private string _pluginFolderPath;
         private Texture2D newTex;
         private bool _hasReplaced = false;
+        private MethodInfo _internalCreateInstanceMethod = typeof(TextAsset).GetMethod(
+                    "Internal_CreateInstance",
+                    BindingFlags.NonPublic | BindingFlags.Static
+                );
 
         void ReplaceTex()
         {
@@ -63,6 +69,43 @@ namespace SilksongFontsInject
             }
         }
 
+        void ReplaceText(string textAssetName, string text)
+        {
+            TextAsset textAsset = (TextAsset)Resources.Load($"Languages/{textAssetName}", typeof(TextAsset));
+            _internalCreateInstanceMethod.Invoke(null, new object[] { textAsset, text });
+        }
+
+        void Translate()
+        {
+            string translationFilePath = Path.Combine(_pluginFolderPath, "assets\\translation.json");
+            Logger.LogInfo($"Loading translation file from {translationFilePath}");
+            if (!File.Exists(translationFilePath)) return;
+
+            try
+            {
+                var jsonContent = File.ReadAllText(translationFilePath, System.Text.Encoding.UTF8);
+                var translationData = JsonConvert.DeserializeObject<TranslationData>(jsonContent);
+
+                if (translationData == null || translationData.entries == null)
+                {
+                    Logger.LogError("Invalid translation file");
+                    return;
+                }
+
+                foreach (var entry in translationData.entries)
+                {
+                    if (!string.IsNullOrEmpty(entry.k) && entry.v != null)
+                    {
+                        ReplaceText(entry.k, entry.v);
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                Logger.LogError($"Failed to parse translation.json: {ex.ToString()}");
+            }
+        }
+
         private void OnActiveSceneChanged(Scene oldScene, Scene newScene)
         {
             // Logger.LogInfo($"Scene changed from {oldScene.name} to {newScene.name}");
@@ -76,6 +119,7 @@ namespace SilksongFontsInject
                     ReplaceTex();
                     Logger.LogInfo("Replace TMP Font");
                 }
+                Translate();
             }
         }
 
@@ -85,13 +129,14 @@ namespace SilksongFontsInject
             // {
             //     Logger.LogInfo($"SCENE CHANGED: '{newScene.name}' (path: {newScene.path})");
             // };
-
             SceneManager.activeSceneChanged += OnActiveSceneChanged;
 
             Assembly assembly = Assembly.GetExecutingAssembly();
             string dllPath = assembly.Location;
             _pluginFolderPath = Path.GetDirectoryName(dllPath);
             Logger.LogInfo($"{_pluginFolderPath}");
+
+            Translate();
 
             var tex_path = Path.Combine(_pluginFolderPath, "assets/font.png");
             var bytes = File.ReadAllBytes(tex_path);
@@ -112,5 +157,18 @@ namespace SilksongFontsInject
     public class glyList
     {
         public List<TMP_Glyph> data;
+    }
+
+    [System.Serializable]
+    public class TranslationEntry
+    {
+        public string k;
+        public string v;
+    }
+
+    [System.Serializable]
+    public class TranslationData
+    {
+        public List<TranslationEntry> entries;
     }
 }
