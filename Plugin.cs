@@ -1,14 +1,18 @@
 ﻿using BepInEx;
+using HarmonyLib;
+using System;
 using System.IO;
 using System.Linq;
-using TMProOld;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Reflection;
+using System.Text;
+using UnityEngine.UI;
+using TMProOld;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Newtonsoft.Json;
-using GenericVariableExtension;
+
 
 namespace SilksongFontsInject
 {
@@ -22,6 +26,8 @@ namespace SilksongFontsInject
                     "Internal_CreateInstance",
                     BindingFlags.NonPublic | BindingFlags.Static
                 );
+        private bool _isCsvExist = false;
+        private static readonly Dictionary<string, string> TextReplacements = new Dictionary<string, string>();
 
         void ReplaceTex()
         {
@@ -77,7 +83,7 @@ namespace SilksongFontsInject
 
         void Translate()
         {
-            string translationFilePath = Path.Combine(_pluginFolderPath, "assets\\translation.json");
+            string translationFilePath = Path.Combine(_pluginFolderPath, "assets/zh-Hans.json");
             Logger.LogInfo($"Loading translation file from {translationFilePath}");
             if (!File.Exists(translationFilePath)) return;
 
@@ -103,6 +109,48 @@ namespace SilksongFontsInject
             catch (System.Exception ex)
             {
                 Logger.LogError($"Failed to parse translation.json: {ex.ToString()}");
+            }
+        }
+
+        private void LoadReplacementsFromCSV()
+        {
+            string filePath = Path.Combine(_pluginFolderPath, "assets/replacements.csv");
+            if (!File.Exists(filePath))
+            {
+                _isCsvExist = false;
+                return;
+            }
+            _isCsvExist = true;
+            Logger.LogInfo($"Loading replacements from {filePath}");
+
+            try
+            {
+                TextReplacements.Clear();
+
+                string[] lines = File.ReadAllLines(filePath, Encoding.UTF8);
+                for (int i = 1; i < lines.Length; i++)
+                {
+                    string line = lines[i];
+                    if (string.IsNullOrWhiteSpace(line)) continue;
+
+                    string[] parts = line.Split(',');
+
+                    if (parts.Length >= 2)
+                    {
+                        string original = parts[0].Trim();
+                        string replacement = parts[1].Trim();
+
+                        if (!string.IsNullOrEmpty(original) && !string.IsNullOrEmpty(replacement))
+                        {
+                            TextReplacements[original] = replacement;
+                        }
+                    }
+                }
+                Logger.LogInfo("Loaded " + TextReplacements.Count + " text replacements.");
+            }
+            catch (Exception e)
+            {
+                Logger.LogError("Failed to load csv file: " + e.Message);
             }
         }
 
@@ -142,15 +190,43 @@ namespace SilksongFontsInject
             var bytes = File.ReadAllBytes(tex_path);
             newTex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             newTex.LoadImage(bytes);
+
+            LoadReplacementsFromCSV();
+            if (_isCsvExist)
+            {
+                Harmony.CreateAndPatchAll(typeof(TextPatchers));
+            }
+
         }
+
         void Update()
         {
-            // var key = new BepInEx.Configuration.KeyboardShortcut(KeyCode.F9);
+        }
 
-            // if (key.IsDown())
-            // {
-            //     ReplaceTex();
-            // }
+        [HarmonyPatch]
+        internal static class TextPatchers
+        {
+            [HarmonyPatch(typeof(Text), "text", MethodType.Setter)]
+            [HarmonyPrefix]
+            public static void TextSetterPrefix(ref string value)
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                foreach (var entry in TextReplacements)
+                {
+                    if (value.Contains(entry.Key) && !value.Contains(entry.Value)) value = value.Replace(entry.Key, entry.Value);
+                }
+            }
+
+            [HarmonyPatch(typeof(TMP_Text), "text", MethodType.Setter)]
+            [HarmonyPrefix]
+            public static void TMP_TextSetterPrefix(ref string value)
+            {
+                if (string.IsNullOrEmpty(value)) return;
+                foreach (var entry in TextReplacements)
+                {
+                    if (value.Contains(entry.Key) && !value.Contains(entry.Value)) value = value.Replace(entry.Key, entry.Value);
+                }
+            }
         }
     }
 
