@@ -154,6 +154,33 @@ namespace SilksongFontsInject
             }
         }
 
+        private static string ProcessTextReplacement(string originalValue)
+        {
+            if (string.IsNullOrEmpty(originalValue))
+            {
+                return originalValue;
+            }
+
+            string bestMatchKey = null;
+            foreach (var key in TextReplacements.Keys)
+            {
+                if (originalValue.Contains(key) && !originalValue.Contains(TextReplacements[key]))
+                {
+                    if (bestMatchKey == null || key.Length > bestMatchKey.Length)
+                    {
+                        bestMatchKey = key;
+                    }
+                }
+            }
+
+            if (bestMatchKey != null)
+            {
+                return originalValue.Replace(bestMatchKey, TextReplacements[bestMatchKey]);
+            }
+
+            return originalValue;
+        }
+
         private void OnActiveSceneChanged(Scene oldScene, Scene newScene)
         {
             // Logger.LogInfo($"Scene changed from {oldScene.name} to {newScene.name}");
@@ -211,10 +238,7 @@ namespace SilksongFontsInject
             public static void TextSetterPrefix(ref string value)
             {
                 if (string.IsNullOrEmpty(value)) return;
-                foreach (var entry in TextReplacements)
-                {
-                    if (value.Contains(entry.Key) && !value.Contains(entry.Value)) value = value.Replace(entry.Key, entry.Value);
-                }
+                value = ProcessTextReplacement(value);
             }
 
             [HarmonyPatch(typeof(TMP_Text), "text", MethodType.Setter)]
@@ -222,10 +246,7 @@ namespace SilksongFontsInject
             public static void TMP_TextSetterPrefix(ref string value)
             {
                 if (string.IsNullOrEmpty(value)) return;
-                foreach (var entry in TextReplacements)
-                {
-                    if (value.Contains(entry.Key) && !value.Contains(entry.Value)) value = value.Replace(entry.Key, entry.Value);
-                }
+                value = ProcessTextReplacement(value);
             }
         }
     }
