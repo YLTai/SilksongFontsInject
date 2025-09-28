@@ -22,12 +22,14 @@ namespace SilksongFontsInject
         private string _pluginFolderPath;
         private Texture2D newTex;
         private bool _hasReplaced = false;
-        private MethodInfo _internalCreateInstanceMethod = typeof(TextAsset).GetMethod(
+        internal static MethodInfo _internalCreateInstanceMethod = typeof(TextAsset).GetMethod(
                     "Internal_CreateInstance",
                     BindingFlags.NonPublic | BindingFlags.Static
                 );
         private bool _isCsvExist = false;
+        private bool _isTransJsonExist = false;
         private static readonly Dictionary<string, string> TextReplacements = new Dictionary<string, string>();
+        internal static readonly Dictionary<string, string> TranslationCache = new Dictionary<string, string>();
 
         void ReplaceTex()
         {
@@ -75,17 +77,16 @@ namespace SilksongFontsInject
             }
         }
 
-        void ReplaceText(string textAssetName, string text)
-        {
-            TextAsset textAsset = (TextAsset)Resources.Load($"Languages/{textAssetName}", typeof(TextAsset));
-            _internalCreateInstanceMethod.Invoke(null, new object[] { textAsset, text });
-        }
-
-        void Translate()
+        void LoadTranslations()
         {
             string translationFilePath = Path.Combine(_pluginFolderPath, "assets/zh-Hans.json");
             Logger.LogInfo($"Loading translation file from {translationFilePath}");
-            if (!File.Exists(translationFilePath)) return;
+            if (!File.Exists(translationFilePath))
+            {
+                _isTransJsonExist = false;
+                return;
+            }
+            _isTransJsonExist = true;
 
             try
             {
@@ -98,11 +99,12 @@ namespace SilksongFontsInject
                     return;
                 }
 
+                TranslationCache.Clear();
                 foreach (var entry in translationData.entries)
                 {
                     if (!string.IsNullOrEmpty(entry.k) && entry.v != null)
                     {
-                        ReplaceText(entry.k, entry.v);
+                        TranslationCache[entry.k] = entry.v;
                     }
                 }
             }
@@ -194,16 +196,11 @@ namespace SilksongFontsInject
                     ReplaceTex();
                     Logger.LogInfo("Replace TMP Font");
                 }
-                Translate();
             }
         }
 
         private void Awake()
         {
-            // SceneManager.activeSceneChanged += (oldScene, newScene) =>
-            // {
-            //     Logger.LogInfo($"SCENE CHANGED: '{newScene.name}' (path: {newScene.path})");
-            // };
             SceneManager.activeSceneChanged += OnActiveSceneChanged;
 
             Assembly assembly = Assembly.GetExecutingAssembly();
@@ -211,19 +208,15 @@ namespace SilksongFontsInject
             _pluginFolderPath = Path.GetDirectoryName(dllPath);
             Logger.LogInfo($"{_pluginFolderPath}");
 
-            Translate();
-
             var tex_path = Path.Combine(_pluginFolderPath, "assets/font.png");
             var bytes = File.ReadAllBytes(tex_path);
             newTex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
             newTex.LoadImage(bytes);
 
             LoadReplacementsFromCSV();
-            if (_isCsvExist)
-            {
-                Harmony.CreateAndPatchAll(typeof(TextPatchers));
-            }
-
+            LoadTranslations();
+            if (_isCsvExist) Harmony.CreateAndPatchAll(typeof(TextPatchers));
+            if (_isTransJsonExist) Harmony.CreateAndPatchAll(typeof(ResourceLoadPatch));
         }
 
         void Update()
@@ -247,6 +240,25 @@ namespace SilksongFontsInject
             {
                 if (string.IsNullOrEmpty(value)) return;
                 value = ProcessTextReplacement(value);
+            }
+        }
+
+        [HarmonyPatch(typeof(Resources))]
+        internal static class ResourceLoadPatch
+        {
+            [HarmonyPatch(nameof(Resources.Load), new Type[] { typeof(string), typeof(Type) })]
+            [HarmonyPostfix]
+            public static void LoadPostfix(string path, Type systemTypeInstance, ref UnityEngine.Object __result)
+            {
+                if (path != null && path.StartsWith("Languages/") && __result is TextAsset textAsset)
+                {
+                    string textAssetName = Path.GetFileName(path);
+
+                    if (TranslationCache.TryGetValue(textAssetName, out string translatedText))
+                    {
+                        _internalCreateInstanceMethod.Invoke(null, new object[] { textAsset, translatedText });
+                    }
+                }
             }
         }
     }

@@ -2,8 +2,6 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SilksongFontsInject copy", "SilksongFontsInject copy.csproj", "{CC71D7E4-3374-151E-4792-C2A0C2CB80D8}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SilksongFontsInject", "SilksongFontsInject.csproj", "{DDCB45F2-7DA4-663E-0A32-7FABB80C96EA}"
 EndProject
 Global
